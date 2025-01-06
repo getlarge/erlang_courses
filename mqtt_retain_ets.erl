@@ -1,6 +1,7 @@
 -module(mqtt_retain_ets).
 
 -include("rabbit_mqtt_packet.hrl").
+% -include_lib("stdlib/include/ms_transform.hrl").
 
 % -export([new/1, terminate/1, insert/3, lookup/2, delete/2]).
 -compile([export_all, nowarn_export_all]).
@@ -55,17 +56,23 @@ insert(Topic, Msg, #store_state{table = T}) ->
   true = ets:insert(T, #retained_message{topic = Topic, mqtt_msg = Msg}),
   ok.
 
--spec lookup_by_pattern(topic(), store_state()) -> [mqtt_msg()].
+% -spec lookup_by_pattern(topic(), store_state()) -> [mqtt_msg()].
 lookup_by_pattern(Pattern, #store_state{table = T}) ->
   % TODO:
   % 1.derive a pattern compatible with ETS
   % 2. use second argument to match by pattern and reduce the amount of keys to compare
   % this is a tradeoff between having enough keys to compare with Qlobber and not too many to improve performance
   Keys = ets:tab2list(T),
-  Qlobber = qlobber:new(),
-  qlobber:add(Qlobber, Pattern),
-  Topic = match_retained(Keys, Qlobber),
-  get_value(T, Topic).
+  Qlobber = qlobber:new(<<"/">>, <<"+">>, <<"#">>),
+  qlobber:add(Qlobber, Pattern, <<"it matched!">>),
+  Matcher = fun (X) -> topic_matches(X, Qlobber) end,
+
+  % MatchSpec = ets:fun2ms(fun (X) -> match_retained(Keys, Qlobber) end),
+  % ets:test_ms(Keys, MatchSpec).
+  % % ets:select(T, MatchSpec).
+
+  lists:filter(Matcher, Keys).
+  % get_value(T, Pattern).
 
 get_value(T, Topic) ->
   case ets:lookup(T, Topic) of
@@ -75,16 +82,15 @@ get_value(T, Topic) ->
       Msg
   end.
 
-match_retained([], _Qlobber) ->
-  [];
-% TODO: make it recursive to match all retained messages that match the Qlobber pattern
-match_retained([{Topic, _} | Rest], Qlobber) ->
+topic_matches(Topic, Qlobber) ->
   try
     case qlobber:match(Qlobber, Topic) of
+      undefined ->
+        false;
       _ ->
-        Topic
+        true
     end
   catch
     error:badarg ->
-      undefined
+      false
   end.
