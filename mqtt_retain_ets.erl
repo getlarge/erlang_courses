@@ -32,7 +32,7 @@ lookup(Topic, #store_state{table = T}) ->
   case has_wildcards(Topic) of
     true ->
       case lookup_by_pattern(Topic, #store_state{table = T}) of
-        undefined ->
+        [] ->
           undefined;
         [#retained_message{mqtt_msg = Msg}] ->
           Msg
@@ -57,32 +57,33 @@ insert(Topic, Msg, #store_state{table = T}) ->
   true = ets:insert(T, #retained_message{topic = Topic, mqtt_msg = Msg}),
   ok.
 
+% TODO:
+% 1.derive a pattern compatible with ETS
+% 2. use ets:select (or match_object) to match by pattern and reduce the amount of topics to compare
+% The goal is having enough values to compare with Globber and not too many to improve performance
 -spec lookup_by_pattern(topic(), store_state()) -> [mqtt_msg()].
 lookup_by_pattern(Pattern, #store_state{table = T}) ->
-  Qlobber = qlobber:new(<<"/">>, <<"+">>, <<"#">>),
-  qlobber:add(Qlobber, Pattern, <<"it matched!">>),
-  Matcher = fun(X) -> topic_matches(X, Qlobber) end,
-
-  % TODO:
-  % 1.derive a pattern compatible with ETS
-  % 2. use ets:select to match by pattern and reduce the amount of index/values to compare
-  % this is a tradeoff between having enough values to compare with Qlobber and not too many to improve performance
+  Globber = rabbit_globber:new(<<"/">>, <<"+">>, <<"#">>),
+  rabbit_globber:add(Globber, Pattern),
+  Matcher =
+    fun(#retained_message{topic = Topic}) -> rabbit_globber:test(Globber, Topic) end,
+  % Matcher = fun(#retained_message{topic = Topic}) -> topic_matches(Globber, Topic) end,
   Msgs = ets:tab2list(T),
   % MatchSpec = ets:fun2ms(fun (X) -> match_retained(Keys, Qlobber) end),
   % ets:test_ms(Keys, MatchSpec).
-  % % ets:select(T, MatchSpec).
+  % ets:select(T, MatchSpec).
   lists:filter(Matcher, Msgs).
 
--spec topic_matches(mqtt_msg(), function()) -> boolean().
-topic_matches(#retained_message{topic = Topic}, Qlobber) ->
+-spec topic_matches(function(), topic()) -> boolean().
+topic_matches(Qlobber, Topic) ->
   try
-    case qlobber:match(Qlobber, Topic) of
+    case rabbit_globber:match(Qlobber, Topic) of
       undefined ->
         false;
       _ ->
         true
     end
   catch
-    error:badarg ->
+    _:_ ->
       false
   end.
