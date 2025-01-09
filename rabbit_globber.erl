@@ -20,7 +20,7 @@ new(Separator, WildcardOne, WildcardSome) ->
 
 -spec add(globber(), binary()) -> globber().
 add(Globber, Pattern) ->
-    add(Globber, Pattern, <<>>).
+    add(Globber, Pattern, <<"match">>).
 
 -spec add(globber(), binary(), any()) -> globber().
 add(Globber, Pattern, Val) ->
@@ -56,6 +56,8 @@ match(Globber, Pattern) ->
 test(Globber, Pattern) ->
     case match(Globber, Pattern) of
         undefined ->
+            false;
+        [] ->
             false;
         _ ->
             true

@@ -2,8 +2,6 @@
 
 -include("rabbit_mqtt_packet.hrl").
 
-% -include_lib("stdlib/include/ms_transform.hrl").
-
 % -export([new/1, terminate/1, insert/3, lookup/2, delete/2]).
 -compile([export_all, nowarn_export_all]).
 
@@ -67,23 +65,8 @@ lookup_by_pattern(Pattern, #store_state{table = T}) ->
   rabbit_globber:add(Globber, Pattern),
   Matcher =
     fun(#retained_message{topic = Topic}) -> rabbit_globber:test(Globber, Topic) end,
-  % Matcher = fun(#retained_message{topic = Topic}) -> topic_matches(Globber, Topic) end,
   Msgs = ets:tab2list(T),
   % MatchSpec = ets:fun2ms(fun (X) -> match_retained(Keys, Qlobber) end),
   % ets:test_ms(Keys, MatchSpec).
   % ets:select(T, MatchSpec).
   lists:filter(Matcher, Msgs).
-
--spec topic_matches(function(), topic()) -> boolean().
-topic_matches(Qlobber, Topic) ->
-  try
-    case rabbit_globber:match(Qlobber, Topic) of
-      undefined ->
-        false;
-      _ ->
-        true
-    end
-  catch
-    _:_ ->
-      false
-  end.
