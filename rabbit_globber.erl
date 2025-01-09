@@ -3,13 +3,7 @@
 -export([new/0, new/3, add/2, add/3, remove/2, remove/3, test/2, match/2, match_iter/2,
          clear/1]).
 
--record(globber,
-        {separator = <<".">>,
-         wildcard_one = <<"*">>,
-         wildcard_some = <<"#">>,
-         trie = maps:new()}).
-
--type globber() :: #globber{}.
+-include_lib("rabbit_globber.hrl").
 
 -spec new() -> globber().
 new() ->
